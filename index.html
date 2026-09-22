@@ -7,28 +7,6 @@
 
     <title>Tracker Lezioni - Politecnico di Milano</title>
 
-    <!--
-        ============================================================
-        TRACKER LEZIONI POLIMI - VERSIONE CON SINCRONIZZAZIONE CLOUD
-        ============================================================
-
-        PRIMA DI USARE L'APP:
-        1) Crea un progetto gratuito su Supabase.
-        2) Esegui nel SQL Editor il file "supabase_setup.sql".
-        3) Incolla qui sotto il Project URL e la Publishable Key.
-        4) Salva il file.
-        5) Apri lo stesso file su PC e telefono e accedi con
-           lo STESSO account email/password.
-
-        NON inserire MAI qui una "service_role key".
-        La chiave frontend deve essere la Publishable key (o la
-        vecchia anon key) e la tabella deve essere protetta da RLS.
-
-        Il file funziona come pagina HTML singola e usa Supabase
-        tramite CDN. È quindi necessario avere una connessione
-        Internet per la sincronizzazione cloud.
-    -->
-
     <style>
         :root {
             --bg: #f4f5f7;
@@ -51,6 +29,9 @@
 
             --gray: #6b7280;
             --gray-bg: #f3f4f6;
+
+            --blue: #3b82f6;
+            --blue-bg: #eff6ff;
 
             --primary: #1565c0;
             --primary-dark: #0d47a1;
@@ -319,7 +300,7 @@
 
         .stats {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 10px;
             margin-bottom: 16px;
         }
@@ -474,6 +455,11 @@
             background: var(--gray-bg);
         }
 
+        .status-appunti {
+            border-color: var(--blue);
+            background: var(--blue-bg);
+        }
+
         /* =========================
            STATO VUOTO
            ========================= */
@@ -523,7 +509,7 @@
             }
 
             .stats {
-                grid-template-columns: repeat(6, 1fr);
+                grid-template-columns: repeat(7, 1fr);
             }
 
             .control-grid {
@@ -763,6 +749,18 @@
 
         <div class="stat">
             <span
+                id="appuntiCount"
+                class="stat-number">
+                0
+            </span>
+
+            <span class="stat-label">
+                Chiedere Appunti
+            </span>
+        </div>
+
+        <div class="stat">
+            <span
                 id="cancelledCount"
                 class="stat-number">
                 0
@@ -816,61 +814,23 @@
 </div>
 
 
-<!--
-    Supabase JS via CDN.
-    La documentazione ufficiale supporta l'installazione via CDN
-    di @supabase/supabase-js v2.
--->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 
 <script>
 "use strict";
 
-
-/* =============================================================
-   CONFIGURAZIONE SUPABASE
-   =============================================================
-
-   INCOLLA QUI I DATI DEL TUO PROGETTO.
-
-   Esempio:
-   const SUPABASE_URL = "https://xxxxxxxx.supabase.co";
-   const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_xxxxx";
-
-   Non usare la service_role key.
-   ============================================================= */
-
 const SUPABASE_URL = "https://sxrsycfupumgreozgsxd.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_z9SB6rTuUKC8iXYguLZcMg_ws1Fbh7r";
 
-
-/* =============================================================
-   CONFIGURAZIONE APP
-   ============================================================= */
-
 const TABLE_NAME = "lesson_tracker";
-
 const CACHE_KEY = "tracker_lezioni_polimi_sync_2026_2027";
-
 const LEGACY_CACHE_KEY = "tracker_lezioni_polimi_2026_2027";
 
 const START_DATE = "2026-09-14";
 const END_DATE = "2026-12-23";
 
-
-/*
-    IMPORTANTE:
-    Il nuovo stato predefinito è:
-    🕒 In attesa di registrazione
-*/
-
 const DEFAULT_STATUS = "registrazione";
-
-
-/* =============================================================
-   ORARIO SETTIMANALE
-   ============================================================= */
 
 const WEEKLY_SCHEDULE = {
 
@@ -905,11 +865,6 @@ const WEEKLY_SCHEDULE = {
     ],
 };
 
-
-/* =============================================================
-   STATI
-   ============================================================= */
-
 const STATUS_OPTIONS = [
     {
         value: "da_recuperare",
@@ -918,6 +873,10 @@ const STATUS_OPTIONS = [
     {
         value: "completata",
         label: "✅ Completata"
+    },
+    {
+        value: "appunti",
+        label: "📝 Chiedere Appunti"
     },
     {
         value: "annullata",
@@ -933,172 +892,92 @@ const STATUS_OPTIONS = [
     }
 ];
 
-
 const STATUS_CLASSES = {
-
     da_recuperare: "status-da-recuperare",
-
     completata: "status-completata",
-
+    appunti: "status-appunti",
     annullata: "status-annullata",
-
     registrazione: "status-registrazione",
-
     dimenticanza: "status-dimenticanza"
 };
-
-
-/* =============================================================
-   ELEMENTI HTML
-   ============================================================= */
 
 const authCard = document.getElementById("authCard");
 const authFormContainer = document.getElementById("authFormContainer");
 const authForm = document.getElementById("authForm");
-
 const emailInput = document.getElementById("emailInput");
 const passwordInput = document.getElementById("passwordInput");
-
 const loginButton = document.getElementById("loginButton");
 const signupButton = document.getElementById("signupButton");
 const logoutButton = document.getElementById("logoutButton");
-
 const loggedUser = document.getElementById("loggedUser");
 const loggedUserEmail = document.getElementById("loggedUserEmail");
-
 const authStatus = document.getElementById("authStatus");
-
 const mainControls = document.getElementById("mainControls");
 const generateButton = document.getElementById("generateButton");
 const importLegacyButton = document.getElementById("importLegacyButton");
 const resetStatusesButton = document.getElementById("resetStatusesButton");
-
 const syncStatus = document.getElementById("syncStatus");
-
 const stats = document.getElementById("stats");
-
 const totalCount = document.getElementById("totalCount");
 const completedCount = document.getElementById("completedCount");
 const pendingCount = document.getElementById("pendingCount");
 const waitingCount = document.getElementById("waitingCount");
+const appuntiCount = document.getElementById("appuntiCount");
 const cancelledCount = document.getElementById("cancelledCount");
 const forgottenCount = document.getElementById("forgottenCount");
-
 const lessonList = document.getElementById("lessonList");
 
-
-/* =============================================================
-   VARIABILI STATO
-   ============================================================= */
-
 let supabaseClient = null;
-
 let currentUser = null;
-
 let lessons = [];
-
 let realtimeChannel = null;
-
 let isInitialized = false;
-
 let isSyncing = false;
 
-
-/* =============================================================
-   FUNZIONI GENERALI
-   ============================================================= */
-
 function isSupabaseConfigured() {
-
-    if (
-        !SUPABASE_URL ||
-        !SUPABASE_PUBLISHABLE_KEY
-    ) {
+    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
         return false;
     }
-
-    if (
-        SUPABASE_URL.includes("INCOLLA_QUI") ||
-        SUPABASE_PUBLISHABLE_KEY.includes("INCOLLA_QUI")
-    ) {
+    if (SUPABASE_URL.includes("INCOLLA_QUI") || SUPABASE_PUBLISHABLE_KEY.includes("INCOLLA_QUI")) {
         return false;
     }
-
     return true;
 }
 
-
 function parseDate(dateString) {
-
-    const [year, month, day] =
-        dateString.split("-").map(Number);
-
-    return new Date(
-        year,
-        month - 1,
-        day
-    );
+    const [year, month, day] = dateString.split("-").map(Number);
+    return new Date(year, month - 1, day);
 }
 
-
 function dateToISO(date) {
-
-    const year =
-        date.getFullYear();
-
-    const month =
-        String(
-            date.getMonth() + 1
-        ).padStart(2, "0");
-
-    const day =
-        String(
-            date.getDate()
-        ).padStart(2, "0");
-
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
 }
 
-
 function formatDateItalian(date) {
-
-    return new Intl.DateTimeFormat(
-        "it-IT",
-        {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric"
-        }
-    ).format(date);
+    return new Intl.DateTimeFormat("it-IT", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+    }).format(date);
 }
-
 
 function formatDayItalian(date) {
-
-    return new Intl.DateTimeFormat(
-        "it-IT",
-        {
-            weekday: "long"
-        }
-    ).format(date);
+    return new Intl.DateTimeFormat("it-IT", {
+        weekday: "long"
+    }).format(date);
 }
 
-
 function capitalizeFirstLetter(text) {
-
     if (!text) {
         return text;
     }
-
-    return (
-        text.charAt(0).toUpperCase() +
-        text.slice(1)
-    );
+    return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-
 function escapeHTML(value) {
-
     return String(value)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -1107,2092 +986,752 @@ function escapeHTML(value) {
         .replace(/'/g, "&#039;");
 }
 
-
 function createLessonId(date, subject) {
-
     return `${date}::${subject}`;
 }
 
-
-/* =============================================================
-   MESSAGGI
-   ============================================================= */
-
-function setAuthStatus(
-    message,
-    type = "info"
-) {
-
+function setAuthStatus(message, type = "info") {
     authStatus.textContent = message;
-
-    authStatus.className =
-        `auth-status ${type}`;
+    authStatus.className = `auth-status ${type}`;
 }
 
-
-function setSyncStatus(
-    message,
-    type = "info"
-) {
-
+function setSyncStatus(message, type = "info") {
     syncStatus.textContent = message;
-
-    syncStatus.className =
-        `sync-status ${type}`;
+    syncStatus.className = `sync-status ${type}`;
 }
-
-
-/* =============================================================
-   CACHE LOCALE
-   ============================================================= */
 
 function saveLocalCache() {
-
     try {
-
-        localStorage.setItem(
-            CACHE_KEY,
-            JSON.stringify(lessons)
-        );
-
+        localStorage.setItem(CACHE_KEY, JSON.stringify(lessons));
     } catch (error) {
-
-        console.error(
-            "Errore salvataggio cache locale:",
-            error
-        );
+        console.error("Errore salvataggio cache locale:", error);
     }
 }
 
-
 function loadLocalCache() {
-
     try {
-
-        const raw =
-            localStorage.getItem(
-                CACHE_KEY
-            );
-
+        const raw = localStorage.getItem(CACHE_KEY);
         if (!raw) {
             return [];
         }
-
-        const parsed =
-            JSON.parse(raw);
-
-        return Array.isArray(parsed)
-            ? parsed
-            : [];
-
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
     } catch (error) {
-
-        console.error(
-            "Errore lettura cache locale:",
-            error
-        );
-
+        console.error("Errore lettura cache locale:", error);
         return [];
     }
 }
 
-
-/* =============================================================
-   GENERAZIONE ORARIO
-   ============================================================= */
-
 function buildSemesterSchedule() {
-
     const generatedLessons = [];
-
-    let currentDate =
-        parseDate(START_DATE);
-
-    const endDate =
-        parseDate(END_DATE);
-
+    let currentDate = parseDate(START_DATE);
+    const endDate = parseDate(END_DATE);
 
     while (currentDate <= endDate) {
+        const dayOfWeek = currentDate.getDay();
 
-        const dayOfWeek =
-            currentDate.getDay();
+        if (dayOfWeek !== 0 && WEEKLY_SCHEDULE[dayOfWeek]) {
+            const isoDate = dateToISO(currentDate);
+            const dayName = formatDayItalian(currentDate);
 
-
-        /*
-            0 = domenica.
-            La domenica viene esclusa.
-        */
-
-        if (
-            dayOfWeek !== 0 &&
-            WEEKLY_SCHEDULE[dayOfWeek]
-        ) {
-
-            const isoDate =
-                dateToISO(currentDate);
-
-            const dayName =
-                formatDayItalian(currentDate);
-
-
-            WEEKLY_SCHEDULE[dayOfWeek]
-                .forEach(
-                    (subject, index) => {
-
-                        generatedLessons.push({
-
-                            id:
-                                createLessonId(
-                                    isoDate,
-                                    subject
-                                ),
-
-                            date: isoDate,
-
-                            dayOfWeek:
-                                dayOfWeek,
-
-                            dayName:
-                                dayName,
-
-                            subject:
-                                subject,
-
-                            order:
-                                index + 1,
-
-                            status:
-                                DEFAULT_STATUS
-
-                        });
-
-                    }
-                );
+            WEEKLY_SCHEDULE[dayOfWeek].forEach((subject, index) => {
+                generatedLessons.push({
+                    id: createLessonId(isoDate, subject),
+                    date: isoDate,
+                    dayOfWeek: dayOfWeek,
+                    dayName: dayName,
+                    subject: subject,
+                    order: index + 1,
+                    status: DEFAULT_STATUS
+                });
+            });
         }
-
-
-        currentDate.setDate(
-            currentDate.getDate() + 1
-        );
+        currentDate.setDate(currentDate.getDate() + 1);
     }
-
-
     return generatedLessons;
 }
 
-
-/* =============================================================
-   CONVERSIONE DATABASE -> APP
-   ============================================================= */
-
 function databaseRowToLesson(row) {
-
-    const date =
-        row.date;
-
-    const dateObject =
-        parseDate(date);
-
+    const date = row.date;
+    const dateObject = parseDate(date);
     return {
-
-        id:
-            row.lesson_id,
-
-        date:
-            date,
-
-        dayOfWeek:
-            dateObject.getDay(),
-
-        dayName:
-            formatDayItalian(dateObject),
-
-        subject:
-            row.subject,
-
-        order:
-            0,
-
-        status:
-            row.status || DEFAULT_STATUS
+        id: row.lesson_id,
+        date: date,
+        dayOfWeek: dateObject.getDay(),
+        dayName: formatDayItalian(dateObject),
+        subject: row.subject,
+        order: 0,
+        status: row.status || DEFAULT_STATUS
     };
 }
-
-
-/* =============================================================
-   CONVERSIONE APP -> DATABASE
-   ============================================================= */
 
 function lessonToDatabaseRow(lesson) {
-
     return {
-
-        user_id:
-            currentUser.id,
-
-        lesson_id:
-            lesson.id,
-
-        date:
-            lesson.date,
-
-        subject:
-            lesson.subject,
-
-        status:
-            lesson.status,
-
-        updated_at:
-            new Date().toISOString()
+        user_id: currentUser.id,
+        lesson_id: lesson.id,
+        date: lesson.date,
+        subject: lesson.subject,
+        status: lesson.status,
+        updated_at: new Date().toISOString()
     };
 }
 
-
-/* =============================================================
-   LETTURA CLOUD
-   ============================================================= */
-
 async function fetchCloudRows() {
-
     if (!currentUser) {
         return [];
     }
-
-
-    const {
-        data,
-        error
-    } = await supabaseClient
+    const { data, error } = await supabaseClient
         .from(TABLE_NAME)
-        .select(
-            "user_id, lesson_id, date, subject, status, updated_at"
-        )
-        .eq(
-            "user_id",
-            currentUser.id
-        )
-        .order(
-            "date",
-            {
-                ascending: true
-            }
-        );
-
+        .select("user_id, lesson_id, date, subject, status, updated_at")
+        .eq("user_id", currentUser.id)
+        .order("date", { ascending: true });
 
     if (error) {
-
         throw error;
-
     }
-
-
-    return Array.isArray(data)
-        ? data
-        : [];
+    return Array.isArray(data) ? data : [];
 }
 
-
-/* =============================================================
-   CREAZIONE / SINCRONIZZAZIONE INIZIALE
-   ============================================================= */
-
 async function generateAndSyncSemester() {
-
     if (!currentUser) {
-
-        setSyncStatus(
-            "Accedi prima di generare l'orario.",
-            "error"
-        );
-
+        setSyncStatus("Accedi prima di generare l'orario.", "error");
         return;
     }
-
 
     if (isSyncing) {
         return;
     }
 
-
     isSyncing = true;
-
     generateButton.classList.add("loading");
-
-    setSyncStatus(
-        "🔄 Lettura dei dati dal cloud...",
-        "info"
-    );
-
+    setSyncStatus("🔄 Lettura dei dati dal cloud...", "info");
 
     try {
-
-        const cloudRows =
-            await fetchCloudRows();
-
-
-        const cloudMap =
-            new Map();
-
+        const cloudRows = await fetchCloudRows();
+        const cloudMap = new Map();
 
         cloudRows.forEach(row => {
-
-            cloudMap.set(
-                row.lesson_id,
-                row.status || DEFAULT_STATUS
-            );
-
+            cloudMap.set(row.lesson_id, row.status || DEFAULT_STATUS);
         });
 
-
-        const localCache =
-            loadLocalCache();
-
-
-        const localMap =
-            new Map();
-
+        const localCache = loadLocalCache();
+        const localMap = new Map();
 
         localCache.forEach(lesson => {
-
-            if (
-                lesson &&
-                lesson.id &&
-                lesson.status
-            ) {
-                localMap.set(
-                    lesson.id,
-                    lesson.status
-                );
+            if (lesson && lesson.id && lesson.status) {
+                localMap.set(lesson.id, lesson.status);
             }
-
         });
 
-
-        const generated =
-            buildSemesterSchedule();
-
-
+        const generated = buildSemesterSchedule();
         const missingRows = [];
 
-
         generated.forEach(lesson => {
-
-            /*
-                Priorità:
-                1) stato cloud
-                2) eventuale cache locale nuova
-                3) stato predefinito
-            */
-
-            if (
-                cloudMap.has(lesson.id)
-            ) {
-
-                lesson.status =
-                    cloudMap.get(
-                        lesson.id
-                    );
-
-            } else if (
-                localMap.has(lesson.id)
-            ) {
-
-                lesson.status =
-                    localMap.get(
-                        lesson.id
-                    );
-
+            if (cloudMap.has(lesson.id)) {
+                lesson.status = cloudMap.get(lesson.id);
+            } else if (localMap.has(lesson.id)) {
+                lesson.status = localMap.get(lesson.id);
             } else {
-
-                lesson.status =
-                    DEFAULT_STATUS;
+                lesson.status = DEFAULT_STATUS;
             }
 
-
-            /*
-                Se la lezione non esiste nel cloud,
-                la aggiungeremo mantenendo lo stato
-                appena determinato.
-            */
-
-            if (
-                !cloudMap.has(lesson.id)
-            ) {
-
-                missingRows.push(
-                    lessonToDatabaseRow(
-                        lesson
-                    )
-                );
+            if (!cloudMap.has(lesson.id)) {
+                missingRows.push(lessonToDatabaseRow(lesson));
             }
-
         });
-
 
         lessons = generated;
 
-
-        /*
-            Inseriamo solo le righe mancanti.
-            Non facciamo un upsert cieco su tutto
-            per evitare di sovrascrivere stati già
-            presenti sul cloud.
-        */
-
         if (missingRows.length > 0) {
-
-            setSyncStatus(
-                `☁️ Salvataggio di ${missingRows.length} nuove lezioni...`,
-                "info"
-            );
-
-
-            const {
-                error
-            } = await supabaseClient
+            setSyncStatus(`☁️ Salvataggio di ${missingRows.length} nuove lezioni...`, "info");
+            const { error } = await supabaseClient
                 .from(TABLE_NAME)
-                .upsert(
-                    missingRows,
-                    {
-                        onConflict:
-                            "user_id,lesson_id",
-                        ignoreDuplicates:
-                            true
-                    }
-                );
-
+                .upsert(missingRows, {
+                    onConflict: "user_id,lesson_id",
+                    ignoreDuplicates: true
+                });
 
             if (error) {
                 throw error;
             }
         }
 
-
         saveLocalCache();
-
         renderLessons();
-
         updateStats();
-
-
-        setSyncStatus(
-            `✅ Sincronizzato · ${lessons.length} lezioni`,
-            "success"
-        );
-
+        setSyncStatus(`✅ Sincronizzato · ${lessons.length} lezioni`, "success");
 
     } catch (error) {
-
-        console.error(
-            "Errore sincronizzazione:",
-            error
-        );
-
-
-        /*
-            Se il cloud non risponde, mostriamo comunque
-            un eventuale cache locale già disponibile.
-        */
-
-        const localCache =
-            loadLocalCache();
-
+        console.error("Errore sincronizzazione:", error);
+        const localCache = loadLocalCache();
 
         if (localCache.length > 0) {
-
-            lessons =
-                localCache;
-
+            lessons = localCache;
             renderLessons();
-
             updateStats();
-
-            setSyncStatus(
-                "⚠️ Cloud non raggiungibile: sto mostrando la copia locale.",
-                "error"
-            );
-
+            setSyncStatus("⚠️ Cloud non raggiungibile: sto mostrando la copia locale.", "error");
         } else {
-
-            setSyncStatus(
-                `❌ Errore sincronizzazione: ${error.message || error}`,
-                "error"
-            );
+            setSyncStatus(`❌ Errore sincronizzazione: ${error.message || error}`, "error");
         }
-
     } finally {
-
         isSyncing = false;
-
-        generateButton.classList.remove(
-            "loading"
-        );
+        generateButton.classList.remove("loading");
     }
 }
 
-
-/* =============================================================
-   SALVATAGGIO DI UNA SINGOLA LEZIONE
-   ============================================================= */
-
 async function saveLessonToCloud(lesson) {
-
     if (!currentUser) {
         return false;
     }
 
-
-    const {
-        error
-    } = await supabaseClient
+    const { error } = await supabaseClient
         .from(TABLE_NAME)
-        .upsert(
-            lessonToDatabaseRow(
-                lesson
-            ),
-            {
-                onConflict:
-                    "user_id,lesson_id"
-            }
-        );
-
+        .upsert(lessonToDatabaseRow(lesson), {
+            onConflict: "user_id,lesson_id"
+        });
 
     if (error) {
         throw error;
     }
-
-
     return true;
 }
 
-
-/* =============================================================
-   CAMBIO STATO
-   ============================================================= */
-
 async function handleStatusChange(event) {
+    const select = event.target;
+    const lessonId = select.dataset.id;
+    const newStatus = select.value;
 
-    const select =
-        event.target;
-
-    const lessonId =
-        select.dataset.id;
-
-    const newStatus =
-        select.value;
-
-
-    const lesson =
-        lessons.find(
-            item =>
-                item.id === lessonId
-        );
-
+    const lesson = lessons.find(item => item.id === lessonId);
 
     if (!lesson) {
         return;
     }
 
+    const previousStatus = lesson.status;
 
-    const previousStatus =
-        lesson.status;
-
-
-    /*
-        Aggiornamento immediato UI.
-    */
-
-    lesson.status =
-        newStatus;
-
+    lesson.status = newStatus;
     saveLocalCache();
-
-    updateCardVisual(
-        lessonId,
-        newStatus
-    );
-
+    updateCardVisual(lessonId, newStatus);
     updateStats();
 
-
-    setSyncStatus(
-        "☁️ Salvataggio in corso...",
-        "info"
-    );
-
+    setSyncStatus("☁️ Salvataggio in corso...", "info");
 
     try {
-
-        await saveLessonToCloud(
-            lesson
-        );
-
-
-        setSyncStatus(
-            "✅ Modifica sincronizzata",
-            "success"
-        );
-
-
+        await saveLessonToCloud(lesson);
+        setSyncStatus("✅ Modifica sincronizzata", "success");
     } catch (error) {
-
-        console.error(
-            "Errore salvataggio lezione:",
-            error
-        );
-
-
-        /*
-            Manteniamo la modifica in locale,
-            ma avvisiamo chiaramente che non è stata
-            inviata al cloud.
-        */
-
-        setSyncStatus(
-            "❌ Modifica non sincronizzata. Controlla la connessione.",
-            "error"
-        );
-
-
-        /*
-            Non annulliamo la modifica locale.
-            L'utente potrà riprovare semplicemente
-            cambiando nuovamente lo stato.
-        */
-
-        lesson.status =
-            newStatus;
-
-
-        /*
-            La variabile previousStatus viene conservata
-            intenzionalmente per debugging / future estensioni.
-        */
-
+        console.error("Errore salvataggio lezione:", error);
+        setSyncStatus("❌ Modifica non sincronizzata. Controlla la connessione.", "error");
+        lesson.status = newStatus;
         void previousStatus;
     }
 }
 
-
-/* =============================================================
-   AGGIORNAMENTO VISIVO CARD
-   ============================================================= */
-
-function updateCardVisual(
-    lessonId,
-    status
-) {
-
-    const card =
-        document.querySelector(
-            `[data-lesson-id="${CSS.escape(lessonId)}"]`
-        );
-
+function updateCardVisual(lessonId, status) {
+    const card = document.querySelector(`[data-lesson-id="${CSS.escape(lessonId)}"]`);
 
     if (!card) {
         return;
     }
 
-
-    Object.values(
-        STATUS_CLASSES
-    ).forEach(className => {
-
-        card.classList.remove(
-            className
-        );
-
+    Object.values(STATUS_CLASSES).forEach(className => {
+        card.classList.remove(className);
     });
 
-
-    card.classList.add(
-        STATUS_CLASSES[status] ||
-        STATUS_CLASSES[DEFAULT_STATUS]
-    );
+    card.classList.add(STATUS_CLASSES[status] || STATUS_CLASSES[DEFAULT_STATUS]);
 }
 
-
-/* =============================================================
-   RENDER LISTA
-   ============================================================= */
-
 function renderLessons() {
-
     if (!lessons.length) {
-
         stats.classList.add("hidden");
-
         lessonList.innerHTML = `
             <div class="empty">
-
-                <div class="empty-icon">
-                    📅
-                </div>
-
-                <div class="empty-title">
-                    Nessun orario generato
-                </div>
-
-                <div class="empty-text">
-                    Premi "Genera / Sincronizza Orario Semestre"
-                    per creare le lezioni.
-                </div>
-
+                <div class="empty-icon">📅</div>
+                <div class="empty-title">Nessun orario generato</div>
+                <div class="empty-text">Premi "Genera / Sincronizza Orario Semestre" per creare le lezioni.</div>
             </div>
         `;
-
         return;
     }
 
-
     stats.classList.remove("hidden");
-
-
     let html = "";
-
     let previousDate = null;
 
-
     lessons.forEach(lesson => {
-
-        if (
-            lesson.date !== previousDate
-        ) {
-
+        if (lesson.date !== previousDate) {
             html += `
                 <div class="day-separator">
-
-                    ${capitalizeFirstLetter(
-                        escapeHTML(
-                            lesson.dayName
-                        )
-                    )}
-
+                    ${capitalizeFirstLetter(escapeHTML(lesson.dayName))}
                     ·
-
-                    ${formatDateItalian(
-                        parseDate(
-                            lesson.date
-                        )
-                    )}
-
+                    ${formatDateItalian(parseDate(lesson.date))}
                 </div>
             `;
-
-            previousDate =
-                lesson.date;
+            previousDate = lesson.date;
         }
 
-
-        const statusClass =
-            STATUS_CLASSES[
-                lesson.status
-            ] ||
-            STATUS_CLASSES[
-                DEFAULT_STATUS
-            ];
-
+        const statusClass = STATUS_CLASSES[lesson.status] || STATUS_CLASSES[DEFAULT_STATUS];
 
         html += `
-            <article
-                class="lesson-card ${statusClass}"
-                data-lesson-id="${escapeHTML(lesson.id)}">
-
+            <article class="lesson-card ${statusClass}" data-lesson-id="${escapeHTML(lesson.id)}">
                 <div class="lesson-top">
-
                     <div>
-
-                        <div class="lesson-date">
-                            ${formatDateItalian(
-                                parseDate(
-                                    lesson.date
-                                )
-                            )}
-                        </div>
-
-                        <h2 class="lesson-name">
-                            ${escapeHTML(
-                                lesson.subject
-                            )}
-                        </h2>
-
+                        <div class="lesson-date">${formatDateItalian(parseDate(lesson.date))}</div>
+                        <h2 class="lesson-name">${escapeHTML(lesson.subject)}</h2>
                     </div>
-
-                    <div class="lesson-day">
-                        ${capitalizeFirstLetter(
-                            escapeHTML(
-                                lesson.dayName
-                            )
-                        )}
-                    </div>
-
+                    <div class="lesson-day">${capitalizeFirstLetter(escapeHTML(lesson.dayName))}</div>
                 </div>
-
-
                 <div class="lesson-bottom">
-
-                    <select
-                        class="status-select"
-                        data-id="${escapeHTML(lesson.id)}"
-                        aria-label="Stato della lezione">
-
-                        ${buildStatusOptions(
-                            lesson.status
-                        )}
-
+                    <select class="status-select" data-id="${escapeHTML(lesson.id)}" aria-label="Stato della lezione">
+                        ${buildStatusOptions(lesson.status)}
                     </select>
-
-                    <div class="status-sync-note">
-                        ☁️ Sincronizzato
-                    </div>
-
+                    <div class="status-sync-note">☁️ Sincronizzato</div>
                 </div>
-
             </article>
         `;
     });
 
+    lessonList.innerHTML = html;
 
-    lessonList.innerHTML =
-        html;
-
-
-    document
-        .querySelectorAll(
-            ".status-select"
-        )
-        .forEach(select => {
-
-            select.addEventListener(
-                "change",
-                handleStatusChange
-            );
-
-        });
+    document.querySelectorAll(".status-select").forEach(select => {
+        select.addEventListener("change", handleStatusChange);
+    });
 }
 
-
-function buildStatusOptions(
-    currentStatus
-) {
-
-    return STATUS_OPTIONS
-        .map(option => {
-
-            const selected =
-                option.value ===
-                currentStatus
-                    ? "selected"
-                    : "";
-
-
-            return `
-                <option
-                    value="${option.value}"
-                    ${selected}>
-                    ${option.label}
-                </option>
-            `;
-        })
-        .join("");
+function buildStatusOptions(currentStatus) {
+    return STATUS_OPTIONS.map(option => {
+        const selected = option.value === currentStatus ? "selected" : "";
+        return `
+            <option value="${option.value}" ${selected}>
+                ${option.label}
+            </option>
+        `;
+    }).join("");
 }
-
-
-/* =============================================================
-   STATISTICHE
-   ============================================================= */
 
 function updateStats() {
+    const total = lessons.length;
+    const completed = lessons.filter(lesson => lesson.status === "completata").length;
+    const pending = lessons.filter(lesson => lesson.status === "da_recuperare").length;
+    const waiting = lessons.filter(lesson => lesson.status === "registrazione").length;
+    const appunti = lessons.filter(lesson => lesson.status === "appunti").length;
+    const cancelled = lessons.filter(lesson => lesson.status === "annullata").length;
+    const forgotten = lessons.filter(lesson => lesson.status === "dimenticanza").length;
 
-    const total =
-        lessons.length;
-
-
-    const completed =
-        lessons.filter(
-            lesson =>
-                lesson.status ===
-                "completata"
-        ).length;
-
-
-    const pending =
-        lessons.filter(
-            lesson =>
-                lesson.status ===
-                "da_recuperare"
-        ).length;
-
-
-    const waiting =
-        lessons.filter(
-            lesson =>
-                lesson.status ===
-                "registrazione"
-        ).length;
-
-
-    const cancelled =
-        lessons.filter(
-            lesson =>
-                lesson.status ===
-                "annullata"
-        ).length;
-
-
-    const forgotten =
-        lessons.filter(
-            lesson =>
-                lesson.status ===
-                "dimenticanza"
-        ).length;
-
-
-    totalCount.textContent =
-        total;
-
-    completedCount.textContent =
-        completed;
-
-    pendingCount.textContent =
-        pending;
-
-    waitingCount.textContent =
-        waiting;
-
-    cancelledCount.textContent =
-        cancelled;
-
-    forgottenCount.textContent =
-        forgotten;
+    totalCount.textContent = total;
+    completedCount.textContent = completed;
+    pendingCount.textContent = pending;
+    waitingCount.textContent = waiting;
+    appuntiCount.textContent = appunti;
+    cancelledCount.textContent = cancelled;
+    forgottenCount.textContent = forgotten;
 }
 
-
-/* =============================================================
-   IMPORTAZIONE VECCHIO LOCALSTORAGE
-   ============================================================= */
-
 async function importLegacyData() {
-
     if (!currentUser) {
-
-        setSyncStatus(
-            "Accedi prima di importare i vecchi dati.",
-            "error"
-        );
-
+        setSyncStatus("Accedi prima di importare i vecchi dati.", "error");
         return;
     }
-
 
     let raw = null;
-
-
     try {
-
-        raw =
-            localStorage.getItem(
-                LEGACY_CACHE_KEY
-            );
-
+        raw = localStorage.getItem(LEGACY_CACHE_KEY);
     } catch (error) {
-
-        console.error(
-            error
-        );
+        console.error(error);
     }
-
 
     if (!raw) {
-
-        setSyncStatus(
-            "ℹ️ Non ho trovato dati del vecchio Tracker su questo browser.",
-            "info"
-        );
-
+        setSyncStatus("ℹ️ Non ho trovato dati del vecchio Tracker su questo browser.", "info");
         return;
     }
-
 
     let legacyLessons = [];
-
-
     try {
-
-        legacyLessons =
-            JSON.parse(raw);
-
+        legacyLessons = JSON.parse(raw);
     } catch (error) {
-
-        setSyncStatus(
-            "❌ Il vecchio archivio locale non è leggibile.",
-            "error"
-        );
-
+        setSyncStatus("❌ Il vecchio archivio locale non è leggibile.", "error");
         return;
     }
 
-
-    if (
-        !Array.isArray(legacyLessons) ||
-        legacyLessons.length === 0
-    ) {
-
-        setSyncStatus(
-            "ℹ️ Il vecchio archivio non contiene lezioni.",
-            "info"
-        );
-
+    if (!Array.isArray(legacyLessons) || legacyLessons.length === 0) {
+        setSyncStatus("ℹ️ Il vecchio archivio non contiene lezioni.", "info");
         return;
     }
 
-
-    /*
-        Importiamo solo gli stati effettivamente modificati
-        rispetto al vecchio default "Da recuperare".
-
-        In questo modo le lezioni mai toccate nel vecchio
-        Tracker partono comunque dal NUOVO default:
-        "In attesa di registrazione".
-    */
-
-    const toImport =
-        legacyLessons
-            .filter(
-                lesson =>
-                    lesson &&
-                    lesson.id &&
-                    lesson.subject &&
-                    lesson.date &&
-                    lesson.status &&
-                    lesson.status !== "da_recuperare"
-            );
-
-
-    if (toImport.length === 0) {
-
-        setSyncStatus(
-            "ℹ️ Non risultano stati modificati da importare.",
-            "info"
-        );
-
-        return;
-    }
-
-
-    setSyncStatus(
-        `📥 Importazione di ${toImport.length} stati...`,
-        "info"
+    const toImport = legacyLessons.filter(lesson => 
+        lesson && lesson.id && lesson.subject && lesson.date && lesson.status && lesson.status !== "da_recuperare"
     );
 
+    if (toImport.length === 0) {
+        setSyncStatus("ℹ️ Non risultano stati modificati da importare.", "info");
+        return;
+    }
+
+    setSyncStatus(`📥 Importazione di ${toImport.length} stati...`, "info");
 
     try {
+        const rows = toImport.map(lesson => ({
+            user_id: currentUser.id,
+            lesson_id: lesson.id,
+            date: lesson.date,
+            subject: lesson.subject,
+            status: lesson.status,
+            updated_at: new Date().toISOString()
+        }));
 
-        const rows =
-            toImport.map(
-                lesson => ({
-                    user_id:
-                        currentUser.id,
-
-                    lesson_id:
-                        lesson.id,
-
-                    date:
-                        lesson.date,
-
-                    subject:
-                        lesson.subject,
-
-                    status:
-                        lesson.status,
-
-                    updated_at:
-                        new Date().toISOString()
-                })
-            );
-
-
-        const {
-            error
-        } = await supabaseClient
-            .from(TABLE_NAME)
-            .upsert(
-                rows,
-                {
-                    onConflict:
-                        "user_id,lesson_id"
-                }
-            );
-
+        const { error } = await supabaseClient.from(TABLE_NAME).upsert(rows, { onConflict: "user_id,lesson_id" });
 
         if (error) {
             throw error;
         }
 
-
-        setSyncStatus(
-            `✅ Importati ${rows.length} stati dal vecchio Tracker.`,
-            "success"
-        );
-
-
+        setSyncStatus(`✅ Importati ${rows.length} stati dal vecchio Tracker.`, "success");
         await generateAndSyncSemester();
 
-
     } catch (error) {
-
-        console.error(
-            "Errore importazione:",
-            error
-        );
-
-
-        setSyncStatus(
-            `❌ Errore durante l'importazione: ${error.message || error}`,
-            "error"
-        );
+        console.error("Errore importazione:", error);
+        setSyncStatus(`❌ Errore durante l'importazione: ${error.message || error}`, "error");
     }
 }
 
-
-/* =============================================================
-   REIMPOSTAZIONE DI TUTTI GLI STATI
-   ============================================================= */
-
 async function resetAllStatuses() {
-
     if (!currentUser) {
         return;
     }
 
-
-    const confirmed =
-        confirm(
-            "Vuoi davvero riportare TUTTE le lezioni a 'In attesa di registrazione'?"
-        );
-
-
+    const confirmed = confirm("Vuoi davvero riportare TUTTE le lezioni a 'In attesa di registrazione'?");
     if (!confirmed) {
         return;
     }
 
-
-    setSyncStatus(
-        "🔄 Reimpostazione degli stati...",
-        "info"
-    );
-
+    setSyncStatus("🔄 Reimpostazione degli stati...", "info");
 
     try {
-
-        const rows =
-            lessons.map(
-                lesson => ({
-
-                    user_id:
-                        currentUser.id,
-
-                    lesson_id:
-                        lesson.id,
-
-                    date:
-                        lesson.date,
-
-                    subject:
-                        lesson.subject,
-
-                    status:
-                        DEFAULT_STATUS,
-
-                    updated_at:
-                        new Date().toISOString()
-                })
-            );
-
+        const rows = lessons.map(lesson => ({
+            user_id: currentUser.id,
+            lesson_id: lesson.id,
+            date: lesson.date,
+            subject: lesson.subject,
+            status: DEFAULT_STATUS,
+            updated_at: new Date().toISOString()
+        }));
 
         if (rows.length > 0) {
-
-            const {
-                error
-            } = await supabaseClient
-                .from(TABLE_NAME)
-                .upsert(
-                    rows,
-                    {
-                        onConflict:
-                            "user_id,lesson_id"
-                    }
-                );
-
-
+            const { error } = await supabaseClient.from(TABLE_NAME).upsert(rows, { onConflict: "user_id,lesson_id" });
             if (error) {
                 throw error;
             }
         }
 
-
-        lessons.forEach(
-            lesson => {
-                lesson.status =
-                    DEFAULT_STATUS;
-            }
-        );
-
+        lessons.forEach(lesson => {
+            lesson.status = DEFAULT_STATUS;
+        });
 
         saveLocalCache();
-
         renderLessons();
-
         updateStats();
-
-
-        setSyncStatus(
-            "✅ Tutti gli stati sono stati reimpostati.",
-            "success"
-        );
-
+        setSyncStatus("✅ Tutti gli stati sono stati reimpostati.", "success");
 
     } catch (error) {
-
-        console.error(
-            "Errore reset:",
-            error
-        );
-
-
-        setSyncStatus(
-            `❌ Errore nel reset: ${error.message || error}`,
-            "error"
-        );
+        console.error("Errore reset:", error);
+        setSyncStatus(`❌ Errore nel reset: ${error.message || error}`, "error");
     }
 }
 
-
-/* =============================================================
-   REALTIME
-   ============================================================= */
-
 async function subscribeRealtime() {
-
     if (!currentUser) {
         return;
     }
 
-
-    /*
-        Rimuove l'eventuale canale precedente.
-    */
-
     if (realtimeChannel) {
-
         try {
-
-            await supabaseClient.removeChannel(
-                realtimeChannel
-            );
-
+            await supabaseClient.removeChannel(realtimeChannel);
         } catch (error) {
-
-            console.warn(
-                "Errore rimozione canale:",
-                error
-            );
+            console.warn("Errore rimozione canale:", error);
         }
-
         realtimeChannel = null;
     }
 
-
-    realtimeChannel =
-        supabaseClient
-            .channel(
-                `lesson-tracker-${currentUser.id}`
-            )
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: TABLE_NAME,
-                    filter:
-                        `user_id=eq.${currentUser.id}`
-                },
-                payload => {
-
-                    handleRealtimePayload(
-                        payload
-                    );
-
-                }
-            )
-            .subscribe(
-                status => {
-
-                    if (
-                        status === "SUBSCRIBED"
-                    ) {
-
-                        setSyncStatus(
-                            "🟢 Sincronizzazione in tempo reale attiva",
-                            "success"
-                        );
-
-                    }
-
-                }
-            );
+    realtimeChannel = supabaseClient.channel(`lesson-tracker-${currentUser.id}`)
+        .on("postgres_changes", {
+            event: "*",
+            schema: "public",
+            table: TABLE_NAME,
+            filter: `user_id=eq.${currentUser.id}`
+        }, payload => {
+            handleRealtimePayload(payload);
+        })
+        .subscribe(status => {
+            if (status === "SUBSCRIBED") {
+                setSyncStatus("🟢 Sincronizzazione in tempo reale attiva", "success");
+            }
+        });
 }
 
-
-/*
-    Realtime non viene trattato come unica fonte di verità:
-    quando arriva un UPDATE/INSERT aggiorniamo la UI.
-    In caso di problemi di rete, una nuova sincronizzazione
-    dal database rimane sempre possibile.
-*/
-
 function handleRealtimePayload(payload) {
-
     if (!payload) {
         return;
     }
 
+    const eventType = payload.eventType;
 
-    const eventType =
-        payload.eventType;
-
-
-    if (
-        eventType === "INSERT" ||
-        eventType === "UPDATE"
-    ) {
-
-        const row =
-            payload.new;
-
-
-        if (
-            !row ||
-            row.user_id !== currentUser.id
-        ) {
+    if (eventType === "INSERT" || eventType === "UPDATE") {
+        const row = payload.new;
+        if (!row || row.user_id !== currentUser.id) {
             return;
         }
 
-
-        const lesson =
-            lessons.find(
-                item =>
-                    item.id ===
-                    row.lesson_id
-            );
-
-
+        const lesson = lessons.find(item => item.id === row.lesson_id);
         if (!lesson) {
             return;
         }
 
-
-        /*
-            Evitiamo di aggiornare la UI se il valore
-            è già identico a quello appena selezionato.
-        */
-
-        if (
-            lesson.status !== row.status
-        ) {
-
-            lesson.status =
-                row.status ||
-                DEFAULT_STATUS;
-
+        if (lesson.status !== row.status) {
+            lesson.status = row.status || DEFAULT_STATUS;
             saveLocalCache();
-
             renderLessons();
-
             updateStats();
         }
     }
-
 
     if (eventType === "DELETE") {
-
-        const row =
-            payload.old;
-
-
-        if (
-            !row ||
-            row.user_id !== currentUser.id
-        ) {
+        const row = payload.old;
+        if (!row || row.user_id !== currentUser.id) {
             return;
         }
 
-
-        const lesson =
-            lessons.find(
-                item =>
-                    item.id ===
-                    row.lesson_id
-            );
-
-
+        const lesson = lessons.find(item => item.id === row.lesson_id);
         if (lesson) {
-
-            /*
-                Non rimuoviamo la lezione dall'interfaccia,
-                perché la lista del semestre è deterministica.
-                La riportiamo al default.
-            */
-
-            lesson.status =
-                DEFAULT_STATUS;
-
+            lesson.status = DEFAULT_STATUS;
             saveLocalCache();
-
             renderLessons();
-
             updateStats();
         }
     }
 }
 
-
-/* =============================================================
-   AUTENTICAZIONE
-   ============================================================= */
-
 async function handleLogin() {
-
     if (!supabaseClient) {
-
-        setAuthStatus(
-            "Configura prima SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY nel codice.",
-            "error"
-        );
-
+        setAuthStatus("Configura prima SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY nel codice.", "error");
         return;
     }
 
-
-    const email =
-        emailInput.value.trim();
-
-    const password =
-        passwordInput.value;
-
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
 
     if (!email || !password) {
-
-        setAuthStatus(
-            "Inserisci email e password.",
-            "error"
-        );
-
+        setAuthStatus("Inserisci email e password.", "error");
         return;
     }
 
-
-    loginButton.classList.add(
-        "loading"
-    );
-
-    signupButton.classList.add(
-        "loading"
-    );
-
-
-    setAuthStatus(
-        "🔐 Accesso in corso...",
-        "info"
-    );
-
+    loginButton.classList.add("loading");
+    signupButton.classList.add("loading");
+    setAuthStatus("🔐 Accesso in corso...", "info");
 
     try {
-
-        const {
-            data,
-            error
-        } = await supabaseClient.auth.signInWithPassword({
-            email:
-                email,
-
-            password:
-                password
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email: email,
+            password: password
         });
-
 
         if (error) {
             throw error;
         }
 
-
-        if (
-            data &&
-            data.user
-        ) {
-
-            await onLoggedIn(
-                data.user
-            );
+        if (data && data.user) {
+            await onLoggedIn(data.user);
         }
 
-
     } catch (error) {
-
-        console.error(
-            "Errore login:",
-            error
-        );
-
-
-        setAuthStatus(
-            `❌ Accesso non riuscito: ${error.message || error}`,
-            "error"
-        );
-
+        console.error("Errore login:", error);
+        setAuthStatus(`❌ Accesso non riuscito: ${error.message || error}`, "error");
     } finally {
-
-        loginButton.classList.remove(
-            "loading"
-        );
-
-        signupButton.classList.remove(
-            "loading"
-        );
+        loginButton.classList.remove("loading");
+        signupButton.classList.remove("loading");
     }
 }
 
-
 async function handleSignup() {
-
     if (!supabaseClient) {
-
-        setAuthStatus(
-            "Configura prima SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY nel codice.",
-            "error"
-        );
-
+        setAuthStatus("Configura prima SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY nel codice.", "error");
         return;
     }
 
-
-    const email =
-        emailInput.value.trim();
-
-    const password =
-        passwordInput.value;
-
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
 
     if (!email || !password) {
-
-        setAuthStatus(
-            "Inserisci email e password per creare l'account.",
-            "error"
-        );
-
+        setAuthStatus("Inserisci email e password per creare l'account.", "error");
         return;
     }
-
 
     if (password.length < 8) {
-
-        setAuthStatus(
-            "Per sicurezza usa una password di almeno 8 caratteri.",
-            "error"
-        );
-
+        setAuthStatus("Per sicurezza usa una password di almeno 8 caratteri.", "error");
         return;
     }
 
-
-    loginButton.classList.add(
-        "loading"
-    );
-
-    signupButton.classList.add(
-        "loading"
-    );
-
-
-    setAuthStatus(
-        "👤 Creazione account in corso...",
-        "info"
-    );
-
+    loginButton.classList.add("loading");
+    signupButton.classList.add("loading");
+    setAuthStatus("👤 Creazione account in corso...", "info");
 
     try {
-
-        const {
-            data,
-            error
-        } = await supabaseClient.auth.signUp({
-            email:
-                email,
-
-            password:
-                password
+        const { data, error } = await supabaseClient.auth.signUp({
+            email: email,
+            password: password
         });
-
 
         if (error) {
             throw error;
         }
 
-
-        /*
-            Se Confirm Email è disabilitato,
-            Supabase può restituire direttamente
-            una sessione.
-        */
-
-        if (
-            data &&
-            data.session &&
-            data.user
-        ) {
-
-            setAuthStatus(
-                "✅ Account creato e accesso effettuato.",
-                "success"
-            );
-
-            await onLoggedIn(
-                data.user
-            );
-
+        if (data && data.session && data.user) {
+            setAuthStatus("✅ Account creato e accesso effettuato.", "success");
+            await onLoggedIn(data.user);
             return;
         }
 
-
-        /*
-            Se Confirm Email è attivo,
-            normalmente è necessario confermare
-            l'indirizzo tramite email prima del login.
-        */
-
-        setAuthStatus(
-            "✅ Account creato. Controlla l'email di conferma e poi accedi.",
-            "success"
-        );
-
+        setAuthStatus("✅ Account creato. Controlla l'email di conferma e poi accedi.", "success");
 
     } catch (error) {
-
-        console.error(
-            "Errore registrazione:",
-            error
-        );
-
-
-        setAuthStatus(
-            `❌ Registrazione non riuscita: ${error.message || error}`,
-            "error"
-        );
-
+        console.error("Errore registrazione:", error);
+        setAuthStatus(`❌ Registrazione non riuscita: ${error.message || error}`, "error");
     } finally {
-
-        loginButton.classList.remove(
-            "loading"
-        );
-
-        signupButton.classList.remove(
-            "loading"
-        );
+        loginButton.classList.remove("loading");
+        signupButton.classList.remove("loading");
     }
 }
 
-
 async function handleLogout() {
-
     if (!supabaseClient) {
         return;
     }
 
-
     try {
-
         await supabaseClient.auth.signOut();
-
     } catch (error) {
-
-        console.error(
-            "Errore logout:",
-            error
-        );
-
-        setAuthStatus(
-            `❌ Errore logout: ${error.message || error}`,
-            "error"
-        );
+        console.error("Errore logout:", error);
+        setAuthStatus(`❌ Errore logout: ${error.message || error}`, "error");
     }
 }
 
-
-/* =============================================================
-   GESTIONE UTENTE LOGGATO
-   ============================================================= */
-
 async function onLoggedIn(user) {
-
     if (!user || !user.id) {
         return;
     }
 
-    /*
-        Evita di rieseguire inutilmente l'inizializzazione quando
-        Supabase segnala lo stesso utente più di una volta.
-    */
-    if (
-        currentUser &&
-        currentUser.id === user.id &&
-        lessons.length > 0
-    ) {
+    if (currentUser && currentUser.id === user.id && lessons.length > 0) {
         return;
     }
 
-    currentUser =
-        user;
-
-
-    authFormContainer
-        .classList.add(
-            "hidden"
-        );
-
-
-    loggedUser
-        .classList.remove(
-            "hidden"
-        );
-
-
-    loggedUserEmail
-        .textContent =
-            user.email || "Account autenticato";
-
-
-    mainControls
-        .classList.remove(
-            "hidden"
-        );
-
-
-    setAuthStatus(
-        "✅ Account autenticato.",
-        "success"
-    );
-
+    currentUser = user;
+    authFormContainer.classList.add("hidden");
+    loggedUser.classList.remove("hidden");
+    loggedUserEmail.textContent = user.email || "Account autenticato";
+    mainControls.classList.remove("hidden");
+    setAuthStatus("✅ Account autenticato.", "success");
 
     await subscribeRealtime();
-
     await generateAndSyncSemester();
 }
 
-
 async function onLoggedOut() {
-
     if (realtimeChannel && supabaseClient) {
-
         try {
             await supabaseClient.removeChannel(realtimeChannel);
         } catch (error) {
-            console.warn(
-                "Errore rimozione canale realtime:",
-                error
-            );
+            console.warn("Errore rimozione canale realtime:", error);
         }
-
         realtimeChannel = null;
     }
 
-    currentUser =
-        null;
-
-
-    lessons =
-        [];
-
-
-    authFormContainer
-        .classList.remove(
-            "hidden"
-        );
-
-
-    loggedUser
-        .classList.add(
-            "hidden"
-        );
-
-
-    mainControls
-        .classList.add(
-            "hidden"
-        );
-
-
-    stats
-        .classList.add(
-            "hidden"
-        );
-
+    currentUser = null;
+    lessons = [];
+    authFormContainer.classList.remove("hidden");
+    loggedUser.classList.add("hidden");
+    mainControls.classList.add("hidden");
+    stats.classList.add("hidden");
 
     lessonList.innerHTML = `
         <div class="empty">
-
-            <div class="empty-icon">
-                🔐
-            </div>
-
-            <div class="empty-title">
-                Accedi per iniziare
-            </div>
-
-            <div class="empty-text">
-                Una volta autenticato, premi
-                "Genera / Sincronizza Orario Semestre".
-            </div>
-
+            <div class="empty-icon">🔐</div>
+            <div class="empty-title">Accedi per iniziare</div>
+            <div class="empty-text">Una volta autenticato, premi "Genera / Sincronizza Orario Semestre".</div>
         </div>
     `;
 
-
-    setAuthStatus(
-        "Disconnesso.",
-        "info"
-    );
-
-
-    setSyncStatus(
-        "In attesa di sincronizzazione.",
-        "info"
-    );
+    setAuthStatus("Disconnesso.", "info");
+    setSyncStatus("In attesa di sincronizzazione.", "info");
 }
 
-
-/* =============================================================
-   SESSIONE INIZIALE
-   ============================================================= */
-
 async function initializeApp() {
-
-    /*
-        Verifica configurazione.
-    */
-
     if (!isSupabaseConfigured()) {
-
-        setAuthStatus(
-            "⚠️ App non ancora configurata: inserisci SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY nel codice.",
-            "error"
-        );
-
+        setAuthStatus("⚠️ App non ancora configurata: inserisci SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY nel codice.", "error");
         return;
     }
 
-
     try {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true
+            }
+        });
 
-        /*
-            Crea il client Supabase.
-        */
-
-        supabaseClient =
-            window.supabase.createClient(
-                SUPABASE_URL,
-                SUPABASE_PUBLISHABLE_KEY,
-                {
-                    auth: {
-                        persistSession: true,
-                        autoRefreshToken: true,
-                        detectSessionInUrl: true
-                    }
-                }
-            );
-
-
-        /*
-            Prima leggiamo l'eventuale sessione già presente.
-            In questo modo evitiamo che il callback Auth venga usato
-            per avviare operazioni asincrone durante il callback stesso.
-        */
-
-        const {
-            data,
-            error
-        } = await supabaseClient.auth.getSession();
-
+        const { data, error } = await supabaseClient.auth.getSession();
 
         if (error) {
             throw error;
         }
 
-
-        if (
-            data &&
-            data.session &&
-            data.session.user
-        ) {
-
-            await onLoggedIn(
-                data.session.user
-            );
-
+        if (data && data.session && data.session.user) {
+            await onLoggedIn(data.session.user);
         } else {
-
-            setAuthStatus(
-                "Non connesso. Accedi con il tuo account.",
-                "info"
-            );
+            setAuthStatus("Non connesso. Accedi con il tuo account.", "info");
         }
 
-
-        /*
-            IMPORTANTE:
-            non facciamo await direttamente dentro onAuthStateChange.
-
-            La documentazione Supabase segnala che chiamate async dentro
-            questo callback possono causare deadlock. Per questo usiamo
-            setTimeout(..., 0): il callback termina immediatamente e il
-            lavoro asincrono viene eseguito subito dopo.
-        */
-
-        supabaseClient.auth.onAuthStateChange(
-            (event, session) => {
-
-                setTimeout(() => {
-
-                    if (
-                        session &&
-                        session.user
-                    ) {
-
-                        onLoggedIn(
-                            session.user
-                        ).catch(error => {
-
-                            console.error(
-                                "Errore durante la gestione della sessione:",
-                                error
-                            );
-
-                            setAuthStatus(
-                                `❌ Errore gestione sessione: ${error.message || error}`,
-                                "error"
-                            );
-                        });
-
-                    } else if (
-                        event === "SIGNED_OUT"
-                    ) {
-
-                        onLoggedOut();
-                    }
-
-                }, 0);
-            }
-        );
-
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            setTimeout(() => {
+                if (session && session.user) {
+                    onLoggedIn(session.user).catch(error => {
+                        console.error("Errore durante la gestione della sessione:", error);
+                        setAuthStatus(`❌ Errore gestione sessione: ${error.message || error}`, "error");
+                    });
+                } else if (event === "SIGNED_OUT") {
+                    onLoggedOut();
+                }
+            }, 0);
+        });
 
         isInitialized = true;
 
-
     } catch (error) {
-
-        console.error(
-            "Errore inizializzazione:",
-            error
-        );
-
-
-        setAuthStatus(
-            `❌ Impossibile inizializzare Supabase: ${error.message || error}`,
-            "error"
-        );
+        console.error("Errore inizializzazione:", error);
+        setAuthStatus(`❌ Impossibile inizializzare Supabase: ${error.message || error}`, "error");
     }
 }
 
+authForm.addEventListener("submit", event => {
+    event.preventDefault();
+    handleLogin();
+});
 
-/* =============================================================
-   EVENTI
-   ============================================================= */
+signupButton.addEventListener("click", handleSignup);
+logoutButton.addEventListener("click", handleLogout);
+generateButton.addEventListener("click", async () => {
+    await generateAndSyncSemester();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+});
 
-authForm.addEventListener(
-    "submit",
-    event => {
+importLegacyButton.addEventListener("click", importLegacyData);
+resetStatusesButton.addEventListener("click", resetAllStatuses);
 
-        event.preventDefault();
-
-        handleLogin();
-
-    }
-);
-
-
-signupButton.addEventListener(
-    "click",
-    handleSignup
-);
-
-
-logoutButton.addEventListener(
-    "click",
-    handleLogout
-);
-
-
-generateButton.addEventListener(
-    "click",
-    async () => {
-
+window.addEventListener("online", async () => {
+    if (currentUser) {
+        setSyncStatus("🌐 Connessione ripristinata: sincronizzazione...", "info");
         await generateAndSyncSemester();
-
-        window.scrollTo({
-            top: 0,
-            behavior: "smooth"
-        });
-
     }
-);
-
-
-importLegacyButton.addEventListener(
-    "click",
-    importLegacyData
-);
-
-
-resetStatusesButton.addEventListener(
-    "click",
-    resetAllStatuses
-);
-
-
-/*
-    Quando la connessione internet torna disponibile,
-    rifacciamo una sincronizzazione.
-*/
-
-window.addEventListener(
-    "online",
-    async () => {
-
-        if (currentUser) {
-
-            setSyncStatus(
-                "🌐 Connessione ripristinata: sincronizzazione...",
-                "info"
-            );
-
-            await generateAndSyncSemester();
-        }
-    }
-);
-
-
-/* =============================================================
-   AVVIO
-   ============================================================= */
+});
 
 initializeApp();
 
